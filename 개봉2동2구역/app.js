@@ -35,17 +35,6 @@ const BLOCKS = [
 
 const DEFAULT_CENTER = [37.4889, 126.8550];
 const NOMINATIM_CONFIDENT_MATCH_SCORE = 55;
-const ADDRESS_COORDINATE_OVERRIDES = [
-  {
-    keys: [
-      "서울특별시구로구개봉로15길84-22",
-      "서울구로구개봉로15길84-22",
-      "개봉로15길84-22",
-    ],
-    lat: 37.4908120738912,
-    lng: 126.851226934456,
-  },
-];
 let map;
 let marker;
 
@@ -84,25 +73,6 @@ function normalizeAddressPart(value) {
   return value?.trim().replace(/\s+/g, " ") || "";
 }
 
-function normalizeAddressKey(value) {
-  return normalizeAddressPart(value).replace(/\s+/g, "");
-}
-
-function extractPrimaryNumberToken(value) {
-  const matched = normalizeAddressPart(value).match(/(\d+(?:-\d+)?)$/);
-  return matched ? matched[1] : "";
-}
-
-function findCoordinateOverride(selection) {
-  const candidateKeys = [selection.roadAddress, selection.jibunAddress]
-    .map(normalizeAddressKey)
-    .filter(Boolean);
-
-  return ADDRESS_COORDINATE_OVERRIDES.find((entry) =>
-    candidateKeys.some((key) => entry.keys.includes(key))
-  );
-}
-
 function getSearchViewbox() {
   const coordinates = BLOCKS.flatMap((block) => block.path);
   const lats = coordinates.map(([lat]) => lat);
@@ -129,6 +99,270 @@ function getStructuredStreet(selection) {
   }
 
   return roadAddress;
+}
+
+function normalizeRoadAddressKey(value) {
+  return normalizeAddressPart(value)
+    .replace(/^(서울특별시|서울)\s+구로구\s+/, "")
+    .replace(/^구로구\s+/, "")
+    .replace(/\s+/g, "");
+}
+
+function getBlockCenter(path) {
+  const [latSum, lngSum] = path.reduce(
+    (accumulator, [lat, lng]) => [accumulator[0] + lat, accumulator[1] + lng],
+    [0, 0]
+  );
+
+  return [latSum / path.length, lngSum / path.length];
+}
+
+const BLOCK_ADDRESS_OVERRIDES = [
+  {
+    blockIndex: 0,
+    addressKeys: new Set(
+      [
+        "개봉로 17길 25",
+        "개봉로 17길 23",
+        "개봉로 17길 21",
+        "개봉로 17길 17",
+        "개봉로 17길 15",
+        "개봉로 17길 13",
+        "개봉로 17길 11",
+        "개봉로 15길 10-33",
+        "개봉로 15길 10-31",
+        "개봉로 15길 10-29",
+        "개봉로 15길 10-25",
+        "개봉로 15길 10-23",
+        "개봉로 15길 10-21",
+        "개봉로 15길 10-17",
+        "개봉로 15길 10-13",
+        "개봉로 15길 10-11",
+        "개봉로 15길 10-9",
+        "개봉로 15길 10-7",
+        "개봉로 15길 10-5",
+        "개봉로 15길 12",
+        "개봉로 15길 14",
+        "개봉로 15길 16",
+        "개봉로 15길 18",
+        "개봉로 15길 22",
+        "개봉로 15길 24",
+        "개봉로 15길 26",
+        "개봉로 15길 28",
+        "개봉로 15길 34",
+        "개봉로 15길 36",
+        "개봉로 15길 18-34",
+        "개봉로 15길 18-32",
+        "개봉로 15길 18-31",
+        "개봉로 15길 18-30",
+        "개봉로 15길 18-29",
+        "개봉로 15길 18-28",
+        "개봉로 15길 18-27",
+        "개봉로 15길 18-26",
+        "개봉로 15길 18-23",
+        "개봉로 15길 18-22",
+        "개봉로 15길 18-19",
+        "개봉로 15길 18-17",
+        "개봉로 15길 18-15",
+        "개봉로 15길 18-13",
+        "개봉로 15길 18-9",
+        "개봉로 15길 18-7",
+        "개봉로 15길 18-3",
+        "개봉로 15길 28-34",
+        "개봉로 15길 28-32",
+        "개봉로 15길 28-31",
+        "개봉로 15길 28-30",
+        "개봉로 15길 28-29",
+        "개봉로 15길 28-28",
+        "개봉로 15길 28-22",
+        "개봉로 15길 28-21",
+        "개봉로 15길 28-20",
+        "개봉로 15길 28-19",
+        "개봉로 15길 28-18",
+        "개봉로 15길 28-17",
+        "개봉로 15길 28-16",
+        "개봉로 15길 28-15",
+        "개봉로 15길 28-14",
+        "개봉로 15길 28-13",
+        "개봉로 15길 28-12",
+        "개봉로 15길 28-11",
+        "개봉로 15길 28-10",
+        "개봉로 15길 28-9",
+        "개봉로 15길 28-8",
+        "개봉로 15길 28-7",
+        "개봉로 15길 28-6",
+        "개봉로 15길 28-5",
+        "개봉로 15길 28-4",
+        "개봉로 15길 28-3",
+        "개봉로 15길 36-38",
+        "개봉로 15길 36-36",
+        "개봉로 15길 36-34",
+        "개봉로 15길 36-32",
+        "개봉로 15길 36-27",
+        "개봉로 15길 36-24",
+        "개봉로 15길 36-22",
+        "개봉로 15길 36-21",
+        "개봉로 15길 36-20",
+        "개봉로 15길 36-18",
+        "개봉로 15길 36-14",
+        "개봉로 15길 36-8",
+        "개봉로 15길 36-6",
+        "개봉로 15길 36-4",
+      ].map(normalizeRoadAddressKey)
+    ),
+  },
+  {
+    blockIndex: 1,
+    addressKeys: new Set(
+      [
+        "개봉로 17길 65",
+        "개봉로 17길 61",
+        "개봉로 17길 57",
+        "개봉로 17길 55",
+        "개봉로 17길 45",
+        "개봉로 17길 41",
+        "개봉로 15길 36-31",
+        "개봉로 15길 36-29",
+        "개봉로 15길 36-27",
+        "개봉로 15길 36-25",
+        "개봉로 15길 36-21",
+        "개봉로 15길 36-19",
+        "개봉로 15길 36-15",
+        "개봉로 15길 36-13",
+        "개봉로 15길 36-11",
+        "개봉로 15길 36-9",
+        "개봉로 15길 36-7",
+        "개봉로 15길 36-3",
+        "개봉로 15길 42-2",
+        "개봉로 15길 46-32",
+        "개봉로 15길 46-31",
+        "개봉로 15길 46-30",
+        "개봉로 15길 46-29",
+        "개봉로 15길 46-28",
+        "개봉로 15길 46-27",
+        "개봉로 15길 46-26",
+        "개봉로 15길 46-23",
+        "개봉로 15길 46-21",
+        "개봉로 15길 46-20",
+        "개봉로 15길 46-18",
+        "개봉로 15길 46-17",
+        "개봉로 15길 46-16",
+        "개봉로 15길 46-15",
+        "개봉로 15길 46-14",
+        "개봉로 15길 46-11",
+        "개봉로 15길 46-10",
+        "개봉로 15길 46-8",
+        "개봉로 15길 46-6",
+        "개봉로 15길 46",
+        "개봉로 15길 58-28",
+        "개봉로 15길 58-25",
+        "개봉로 15길 58-24",
+        "개봉로 15길 58-23",
+        "개봉로 15길 58-21",
+        "개봉로 15길 58-22",
+        "개봉로 15길 58-20",
+        "개봉로 15길 58-19",
+        "개봉로 15길 58-16",
+        "개봉로 15길 58-15",
+        "개봉로 15길 58-14",
+        "개봉로 15길 58-10",
+        "개봉로 15길 58-9",
+        "개봉로 15길 58-7",
+        "개봉로 15길 58-5",
+        "개봉로 15길 60",
+        "개봉로 15길 62",
+        "개봉로 15길 68-26",
+        "개봉로 15길 68-20",
+        "개봉로 15길 68-18",
+        "개봉로 15길 68-16",
+        "개봉로 15길 68-14",
+        "개봉로 15길 68-12",
+        "개봉로 15길 68-6",
+        "개봉로 15길 68-2",
+      ].map(normalizeRoadAddressKey)
+    ),
+  },
+  {
+    blockIndex: 2,
+    addressKeys: new Set(
+      [
+        "개봉로 17길 99",
+        "개봉로 17길 97",
+        "개봉로 17길 91",
+        "개봉로 17길 83",
+        "개봉로 17길 81",
+        "개봉로 17길 79",
+        "개봉로 17길 73",
+        "개봉로 17길 69",
+        "개봉로 15길 84-27",
+        "개봉로 15길 84-26",
+        "개봉로 15길 84-24",
+        "개봉로 15길 84-23",
+        "개봉로 15길 84-22",
+        "개봉로 15길 84-15",
+        "개봉로 15길 84-8",
+        "개봉로 15길 84-7",
+        "개봉로 15길 84-6",
+        "개봉로 15길 84-5",
+        "개봉로 15길 84-3",
+        "개봉로 15길 70",
+        "개봉로 15길 72",
+        "개봉로 15길 78",
+        "개봉로 15길 80",
+        "개봉로 15길 82",
+        "개봉로 15길 92",
+        "개봉로 15길 94",
+        "개봉로 15길 98",
+        "개봉로 15길 74-27",
+        "개봉로 15길 74-24",
+        "개봉로 15길 74-23",
+        "개봉로 15길 74-22",
+        "개봉로 15길 74-20",
+        "개봉로 15길 74-19",
+        "개봉로 15길 74-18",
+        "개봉로 15길 74-16",
+        "개봉로 15길 74-15",
+        "개봉로 15길 74-14",
+        "개봉로 15길 74-11",
+        "개봉로 15길 74-8",
+        "개봉로 15길 74-7",
+        "개봉로 15길 74-5",
+        "개봉로 15길 74-2",
+        "개봉로 15길 68-27",
+        "개봉로 15길 68-25",
+        "개봉로 15길 68-21",
+        "개봉로 15길 68-19",
+        "개봉로 15길 68-17",
+        "개봉로 15길 68-15",
+        "개봉로 15길 68-5",
+      ].map(normalizeRoadAddressKey)
+    ),
+  },
+];
+
+function formatCoordinates(lat, lng) {
+  return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+}
+
+function findBlockCenterOverride(selection) {
+  const roadAddressKey = normalizeRoadAddressKey(getStructuredStreet(selection) || selection.roadAddress);
+
+  if (!roadAddressKey) {
+    return null;
+  }
+
+  for (const override of BLOCK_ADDRESS_OVERRIDES) {
+    if (!override.addressKeys.has(roadAddressKey)) {
+      continue;
+    }
+
+    const block = BLOCKS[override.blockIndex];
+    const [lat, lng] = getBlockCenter(block.path);
+
+    return { block, lat, lng };
+  }
+
+  return null;
 }
 
 function buildNominatimCandidates(selection) {
@@ -211,8 +445,6 @@ function scoreNominatimResult(result, selection) {
     .join(" ");
 
   const locality = normalizeAddressPart(selection.hname || selection.bname);
-  const requestedPrimaryNumber = extractPrimaryNumberToken(selection.roadAddress);
-  const resultHouseNumber = normalizeAddressPart(address.house_number);
   let score = Math.min(Number(result.place_rank) || 0, 30);
 
   if (selection.zonecode && address.postcode === selection.zonecode) score += 35;
@@ -223,10 +455,6 @@ function scoreNominatimResult(result, selection) {
   if (selection.roadAddress && result.display_name?.includes(selection.roadAddress)) score += 20;
   if (["building", "house", "residential"].includes(result.type)) score += 15;
   if (["building", "place", "boundary", "highway"].includes(result.class)) score += 5;
-  if (requestedPrimaryNumber && resultHouseNumber === requestedPrimaryNumber) score += 45;
-  if (requestedPrimaryNumber && !resultHouseNumber && (result.class === "highway" || result.addresstype === "road")) {
-    score -= 80;
-  }
 
   return score;
 }
@@ -281,14 +509,6 @@ function initMap() {
 }
 
 async function geocodeAddress(selection) {
-  const override = findCoordinateOverride(selection);
-  if (override) {
-    return {
-      lat: override.lat,
-      lng: override.lng,
-    };
-  }
-
   const candidates = buildNominatimCandidates(selection);
   let bestMatch = null;
 
@@ -316,17 +536,6 @@ async function geocodeAddress(selection) {
   }
 
   if (bestMatch) {
-    const requestedPrimaryNumber = extractPrimaryNumberToken(selection.roadAddress);
-    const address = bestMatch.result.address || {};
-    const isRoadOnlyFallback =
-      requestedPrimaryNumber &&
-      !normalizeAddressPart(address.house_number) &&
-      (bestMatch.result.class === "highway" || bestMatch.result.addresstype === "road");
-
-    if (isRoadOnlyFallback) {
-      throw new Error("정확한 건물 좌표를 찾지 못했습니다. 도로 중심선 결과는 표시하지 않습니다.");
-    }
-
     return {
       lat: Number(bestMatch.result.lat),
       lng: Number(bestMatch.result.lon),
@@ -338,6 +547,20 @@ async function geocodeAddress(selection) {
 
 async function handleAddressSearch(selection, statusMessage) {
   try {
+    const override = findBlockCenterOverride(selection);
+
+    if (override) {
+      placeMarker(
+        override.lat,
+        override.lng,
+        `${statusMessage}\n${override.block.name} 매칭 주소라 ${override.block.name} 중심 좌표(${formatCoordinates(
+          override.lat,
+          override.lng
+        )})에 표시했습니다.`
+      );
+      return;
+    }
+
     setStatus("Nominatim 구조화 검색으로 주소를 좌표로 변환 중...");
     const { lat, lng } = await geocodeAddress(selection);
     placeMarker(lat, lng, statusMessage);

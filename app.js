@@ -35,6 +35,17 @@ const BLOCKS = [
 
 const DEFAULT_CENTER = [37.4889, 126.8550];
 const NOMINATIM_CONFIDENT_MATCH_SCORE = 55;
+const ADDRESS_COORDINATE_OVERRIDES = [
+  {
+    keys: [
+      "서울특별시구로구개봉로15길84-22",
+      "서울구로구개봉로15길84-22",
+      "개봉로15길84-22",
+    ],
+    lat: 37.4908120738912,
+    lng: 126.851226934456,
+  },
+];
 let map;
 let marker;
 
@@ -71,6 +82,25 @@ function formatSelectedAddressStatus(roadAddress, jibunAddress) {
 
 function normalizeAddressPart(value) {
   return value?.trim().replace(/\s+/g, " ") || "";
+}
+
+function normalizeAddressKey(value) {
+  return normalizeAddressPart(value).replace(/\s+/g, "");
+}
+
+function extractPrimaryNumberToken(value) {
+  const matched = normalizeAddressPart(value).match(/(\d+(?:-\d+)?)$/);
+  return matched ? matched[1] : "";
+}
+
+function findCoordinateOverride(selection) {
+  const candidateKeys = [selection.roadAddress, selection.jibunAddress]
+    .map(normalizeAddressKey)
+    .filter(Boolean);
+
+  return ADDRESS_COORDINATE_OVERRIDES.find((entry) =>
+    candidateKeys.some((key) => entry.keys.includes(key))
+  );
 }
 
 function getSearchViewbox() {
@@ -181,6 +211,8 @@ function scoreNominatimResult(result, selection) {
     .join(" ");
 
   const locality = normalizeAddressPart(selection.hname || selection.bname);
+  const requestedPrimaryNumber = extractPrimaryNumberToken(selection.roadAddress);
+  const resultHouseNumber = normalizeAddressPart(address.house_number);
   let score = Math.min(Number(result.place_rank) || 0, 30);
 
   if (selection.zonecode && address.postcode === selection.zonecode) score += 35;
@@ -191,6 +223,10 @@ function scoreNominatimResult(result, selection) {
   if (selection.roadAddress && result.display_name?.includes(selection.roadAddress)) score += 20;
   if (["building", "house", "residential"].includes(result.type)) score += 15;
   if (["building", "place", "boundary", "highway"].includes(result.class)) score += 5;
+  if (requestedPrimaryNumber && resultHouseNumber === requestedPrimaryNumber) score += 45;
+  if (requestedPrimaryNumber && !resultHouseNumber && (result.class === "highway" || result.addresstype === "road")) {
+    score -= 80;
+  }
 
   return score;
 }
@@ -245,6 +281,14 @@ function initMap() {
 }
 
 async function geocodeAddress(selection) {
+  const override = findCoordinateOverride(selection);
+  if (override) {
+    return {
+      lat: override.lat,
+      lng: override.lng,
+    };
+  }
+
   const candidates = buildNominatimCandidates(selection);
   let bestMatch = null;
 
@@ -272,6 +316,17 @@ async function geocodeAddress(selection) {
   }
 
   if (bestMatch) {
+    const requestedPrimaryNumber = extractPrimaryNumberToken(selection.roadAddress);
+    const address = bestMatch.result.address || {};
+    const isRoadOnlyFallback =
+      requestedPrimaryNumber &&
+      !normalizeAddressPart(address.house_number) &&
+      (bestMatch.result.class === "highway" || bestMatch.result.addresstype === "road");
+
+    if (isRoadOnlyFallback) {
+      throw new Error("정확한 건물 좌표를 찾지 못했습니다. 도로 중심선 결과는 표시하지 않습니다.");
+    }
+
     return {
       lat: Number(bestMatch.result.lat),
       lng: Number(bestMatch.result.lon),
